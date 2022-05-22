@@ -3,11 +3,13 @@ require('dotenv').config()
 const express = require("express")
 const bodyParser = require("body-parser")
 const ejs = require("ejs")
-const  mongoose = require("mongoose")
-const encrypt = require("mongoose-encryption")
+const mongoose = require("mongoose")
+const bcrypt = require("bcrypt")
+const saltRounds = 10;
 
 const app = express()
 
+//SETTINGS --------------------------------------------
 console.log(process.env.SECRET);
 
 app.use(express.static('public'))
@@ -23,14 +25,40 @@ const userSchema = new mongoose.Schema({
     password:String
 })
 
-userSchema.plugin(encrypt,{secret:process.env.SECRET,encryptedFields: ['password']})
-
 const User = new mongoose.model("User",userSchema)
 
 //ROUTES -----------------------------------------------
 
 app.get("/",(req,res) => {
     res.render("home")
+})
+
+app.route("/register")
+
+.get((req,res) => {
+    res.render("register")
+})
+
+.post((req,res) => {
+
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        const username = req.body.username
+        const password = req.body.password
+
+        const newUser = new User({
+            email: username,
+            password: hash
+        })
+
+        newUser.save((err) => {
+            if(!err){
+                res.render("secrets")
+            }else{
+                res.send(err)
+            }
+        })
+    });  
+
 })
 
 app.route("/login")
@@ -46,40 +74,15 @@ app.route("/login")
     User.findOne({email:username},(err,content) => {
         if(!err){
             if(content){
-                if(content.password === password){
-                    res.render("secrets")
+                bcrypt.compare(password, content.password, function(err, result) {
+                    if(result === true){
+                        res.render("secrets")
+                    }
+                });
                 }
             }
-        }
+        })
     })
-
-})
-
-app.route("/register")
-
-.get((req,res) => {
-    res.render("register")
-})
-
-.post((req,res) => {
-    const username = req.body.username
-    const password = req.body.password
-
-    const newUser = new User({
-        email: username,
-        password: password
-    })
-
-    newUser.save((err) => {
-        if(!err){
-            res.render("secrets")
-        }else{
-            res.send(err)
-        }
-    })
-
-})
-
 
 //LISTENING PORTS ------------------------------------
 
